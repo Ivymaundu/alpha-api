@@ -13,6 +13,20 @@ class Product(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     price = db.Column(db.Float, nullable=False)
+    sales=db.relationship("Sale",backref='products')
     # created_at=db.Column(db.DateTime,default=datetime.utcnow,nullable=False)
 
 
+class Sale(db.Model):
+    __tablename__='sales'
+    id=db.Column(db.Integer,primary_key=True)
+    pid=db.Column(db.Integer,db.ForeignKey('products.id'),nullable=False)
+    quantity=db.Column(db.Integer,nullable=False)
+    created_at=db.Column(db.DateTime,default=datetime.utcnow ,nullable=False)
+
+class User(db.Model):
+     __tablename__ = 'users'
+     id = db.Column(db.Integer, primary_key=True)
+     username = db.Column(db.String(100),unique=True, nullable=False)
+     password = db.Column(db.String(255), nullable=False)
+     
