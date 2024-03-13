@@ -229,7 +229,7 @@ def dashboard():
     # to_currency_code = data['Realtime Currency Exchange Rate']['3. To_Currency Code']
     # exchange_rate = data['Realtime Currency Exchange Rate']['5. Exchange Rate']
 
-    # output = {to_currency_code.lower(): exchange_rate}
+
 
 
 
