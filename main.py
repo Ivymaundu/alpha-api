@@ -10,7 +10,7 @@ import datetime
 import jwt
 from functools import wraps
 import re
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash,check_password_hash
 
 sentry_sdk.init(
     dsn="https://523b09eaf79187c3156c08fe21297c7b@us.sentry.io/4506695594147840",
@@ -30,8 +30,10 @@ def token_required(f):
             return jsonify({'message': 'Token is missing!'}), 401
 
         try:
+            
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
             current_user = data['username']
+            
         except:
             return jsonify({'message': 'Token is invalid!'}), 401
 
@@ -49,7 +51,7 @@ def register():
             data = request.json
             u = data["username"]
             p = data["password"]
-            hashed_password = generate_password_hash(p)
+            # hashed_password = generate_password_hash(p)
         except KeyError:
             return jsonify({"feedback": "Please provide both 'username' and 'password' fields"}), 400
 
@@ -59,10 +61,10 @@ def register():
         if len(u) == 0:
             return jsonify({"result": "ensure you have entered your username"}), 400
 
-        if not is_valid_password(p):
-            return jsonify({"result": "Password must contain at least one digit, one symbol, and one letter and be at least 8 characters long"}), 400
+        # if not is_valid_password(p):
+        #     return jsonify({"result": "Password must contain at least one digit, one symbol, and one letter and be at least 8 characters long"}), 400
 
-        new_user = User(username=u, password=hashed_password)
+        new_user = User(username=u, password=p)
         db.session.add(new_user)
         db.session.commit()
 
@@ -75,28 +77,47 @@ def login():
         data = request.json
         u=data["username"]
         p=data["password"]
+       
     except Exception as e:
         return jsonify({"result": "invalid credentials"}),400
 
-    if User.query.filter_by(username=u ,password=p).count()>0:
+    user = User.query.filter_by(username=u ,password=p).first()
+
+    if user :
         token = jwt.encode({'username': u, 'exp': datetime.datetime.utcnow() 
                             + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'])
+        response_data = {
+            "message": "Login successful",
+            "access_token": token,  
+            "user_id": str(user.id)  
+        }
         
-        return jsonify({"results" : "success" , "access tocken" : token }),200
+        return jsonify(response_data),200
     else:
         return jsonify({"result": "invalid credentials"}),403
 
 
-@app.route("/products", methods=["POST", "GET", "PUT", "PATCH", "DELETE"])
+@app.route("/products", methods=["POST", "GET"])
 @token_required
 def prods(current_user):
     if request.method == "GET":
         
         try:
-            prods = Product.query.all()
+           
+            user = User.query.filter_by(username=current_user).first()
+            if not user:
+                return jsonify({"message": "User not found"}), 404
+
+            products = Product.query.filter_by(uid=user.id).all()
+
             res = []
-            for i in prods:
-                res.append({"id": i.id,"name": i.name, "price": i.price })
+            for i in products:
+                res.append({
+                    "id": i.id,
+                    "name": i.name,
+                    "price": i.price ,
+                    "uid": i.uid
+                    })
             
             return jsonify(res), 200
             
@@ -112,7 +133,7 @@ def prods(current_user):
         if request.is_json:
            try:
                 data = request.json
-                new_data = Product(name=data['name'], price= data['price'])
+                new_data = Product(name=data['name'], price= data['price'], uid=data['uid'])
                 db.session.add(new_data)
                 db.session.commit()
                 r = f'Successfully stored product id: {str(new_data.id)}'
@@ -125,6 +146,7 @@ def prods(current_user):
     else:
         return jsonify({"Error" : "Method not allowed."}), 403
     
+
 @app.route('/get-product/<int:product_id>', methods=['GET'])
 def get_one_product(product_id):
     try:
@@ -144,24 +166,35 @@ def get_one_product(product_id):
     
     
 @app.route("/sales",methods=["POST","GET"])
-def sales():
+@token_required
+def sales(current_user):
     if request.method=="GET":
         try:
-            sales=Sale.query.all()
+            user = User.query.filter_by(username=current_user).first()
+            if not user:
+                return jsonify({"message": "User not found"}), 404
+
+            sales = Sale.query.filter_by(id=user.id).all()
             s_dict = []
             for sale in sales:
-                s_dict.append({"id": sale.id,"pid": sale.pid, "quantity": sale.quantity,"created_at":sale.created_at })
+                s_dict.append({
+                    "id": sale.id,
+                    "pid": sale.pid,
+                    "quantity": sale.quantity,
+                    "created_at":sale.created_at,
+                    "user_id":sale.user_id
+                      })
             
             return jsonify(s_dict), 200
+        
         except Exception as e:
-            # capture_exception(e)
-            return jsonify({}), 500
+          return jsonify({"error": str(e)}), 500
         
     elif request.method == "POST":
         if request.is_json:
            try:
                 data = request.json
-                new_sales = Sale(pid=data['pid'], quantity= data['quantity'])
+                new_sales = Sale(pid=data['product_id'], quantity= data['product_quantity_sold'], user_id= data['user_id'])
                 db.session.add(new_sales)
                 db.session.commit()
                 s = f'Successfully stored product id: {str(new_sales.id)}'
