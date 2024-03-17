@@ -174,18 +174,18 @@ def sales(current_user):
             if not user:
                 return jsonify({"message": "User not found"}), 404
 
-            sales = Sale.query.filter_by(id=user.id).all()
-            s_dict = []
-            for sale in sales:
-                s_dict.append({
-                    "id": sale.id,
-                    "pid": sale.pid,
-                    "quantity": sale.quantity,
-                    "created_at":sale.created_at,
-                    "user_id":sale.user_id
-                      })
+            sales = Sale.query.join(Product).filter_by(uid=user.id).all()
             
-            return jsonify(s_dict), 200
+            
+            return jsonify([{
+                "id": sale.id,
+                "pid": sale.pid,
+                "quantity": sale.quantity,
+                "created_at":sale.created_at,
+                "user_id":sale.user_id
+                }for sale in sales])
+            
+            
         
         except Exception as e:
           return jsonify({"error": str(e)}), 500
@@ -209,7 +209,8 @@ def sales(current_user):
 
 
 @app.route("/dashboard", methods=["GET"])
-def dashboard():
+@token_required
+def dashboard(current_user):
     # response={
     #     'Realtime Currency Exchange Rate': 
     #     {'1. From_Currency Code': 'USD',
@@ -231,7 +232,9 @@ def dashboard():
 
 
 
-
+    user = User.query.filter_by(username=current_user).first()
+    if not user:
+        return jsonify({"message": "User not found"}), 404
 
     sales_per_day = db.session.query(
         # extracts date from created at
